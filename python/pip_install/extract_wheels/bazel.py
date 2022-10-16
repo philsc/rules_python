@@ -201,6 +201,29 @@ def generate_build_file_contents(
     )
 
 
+def generate_override_build_file_contents(
+    name: str, target_override: str, additional_content: List[str] = []
+) -> str:
+    return "\n".join(
+        [
+            textwrap.dedent(
+                """\
+            package(default_visibility = ["//visibility:public"])
+
+            alias(
+                name = "{name}",
+                actual = "{target_override}",
+            )
+            """.format(
+                    name=name,
+                    target_override=target_override,
+                )
+            ),
+        ]
+        + additional_content
+    )
+
+
 def generate_requirements_file_contents(repo_name: str, targets: Iterable[str]) -> str:
     """Generate a requirements.bzl file for a given pip repository
 
@@ -351,6 +374,7 @@ def extract_wheel(
     Returns:
         The Bazel label for the extracted wheel, in the form '//path/to/wheel'.
     """
+    assert not annotation.target_override
 
     whl = wheel.Wheel(wheel_file)
     if incremental:
@@ -450,3 +474,28 @@ def extract_wheel(
         os.remove(whl.path)
         return f"//{directory}"
     return None
+
+
+def set_up_target_override(
+    annotation: annotation.Annotation,
+    incremental_dir: Path = Path("."),
+) -> None:
+    """Generates an override for the specified package via an alias().
+
+    Args:
+        annotation: A set of annotations to apply to the BUILD contents of the wheel.
+        incremental_dir: An optional override for the working directory of incremental builds.
+    """
+    assert annotation.target_override
+
+    with open(incremental_dir / "BUILD.bazel", "w") as build_file:
+        additional_content = []
+        if annotation.additive_build_content:
+            additional_content.append(annotation.additive_build_content)
+
+        contents = generate_override_build_file_contents(
+            name=PY_LIBRARY_LABEL,
+            target_override=annotation.target_override,
+            additional_content=additional_content,
+        )
+        build_file.write(contents)

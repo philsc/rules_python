@@ -509,7 +509,8 @@ def package_annotation(
         data = [],
         data_exclude_glob = [],
         srcs_exclude_glob = [],
-        deps = []):
+        deps = [],
+        target_override = None):
     """Annotations to apply to the BUILD file content from package generated from a `pip_repository` rule.
 
     [cf]: https://github.com/bazelbuild/bazel-skylib/blob/main/docs/copy_file_doc.md
@@ -525,6 +526,10 @@ def package_annotation(
             `py_library` target.
         srcs_exclude_glob (list, optional): A list of labels to add as `srcs` to the generated `py_library` target.
         deps (list, optional): A list of labels to add as `deps` to the generated `py_library` target.
+        target_override (str, optional): A label to override the specified package. Instead of downloading the
+            package via pip, the BUILD target will instead become an alias() for the specified label.
+            This will only work with incremental mode (i.e. pip_parse()). Note that if the target refers to the main
+            repository, it should be prefixed with "@" here.
 
     Returns:
         str: A json encoded string of the provided content.
@@ -537,4 +542,5 @@ def package_annotation(
         data_exclude_glob = data_exclude_glob,
         srcs_exclude_glob = srcs_exclude_glob,
         deps = deps,
+        target_override = target_override,
     ))

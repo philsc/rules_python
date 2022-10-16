@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Tuple
 from python.pip_install.extract_wheels import annotation
 from python.pip_install.extract_wheels.bazel import (
     extract_wheel,
+    set_up_target_override,
     generate_entry_point_contents,
 )
 
@@ -53,6 +54,7 @@ def parse_starlark(filename: os.PathLike) -> Dict[str, unittest.mock.MagicMock]:
         invoked in the Starlark file.
     """
     starlark_globals = {
+        "alias": unittest.mock.MagicMock(),
         "filegroup": unittest.mock.MagicMock(),
         "glob": unittest.mock.MagicMock(return_value=["<glob()>"]),
         "load": unittest.mock.MagicMock(),
@@ -132,11 +134,15 @@ if __name__ == "__main__":
                     "data_exclude_glob": ["foo/bad.data.*"],
                     "srcs_exclude_glob": ["foo/bad.srcs.*"],
                     "deps": ["//a/dep/of:some_kind"],
+                    "target_override": None,
                 }
             ),
         )
 
         parsed_starlark = parse_starlark(self.tmpdir / "BUILD.bazel")
+
+        # Make sure that there are no aliases generated.
+        self.assertListEqual(parsed_starlark["alias"].mock_calls, [])
 
         # Validate the library target.
         self.assertListEqual(
@@ -186,6 +192,42 @@ if __name__ == "__main__":
                     srcs=["rules_python_wheel_entry_point_test_bin_entry.py"],
                     imports=["."],
                     deps=["pkg"],
+                ),
+            ],
+        )
+
+    def test_set_up_target_override(self):
+        """Validates that set_up_target_override expected BUILD file with a target_override."""
+        # Run the BUILD file generation code.
+        set_up_target_override(
+            incremental_dir=self.tmpdir,
+            annotation=annotation.Annotation(
+                {
+                    "additive_build_content": "",
+                    "copy_executables": {},
+                    "copy_files": {},
+                    "data": [],
+                    "data_exclude_glob": [],
+                    "srcs_exclude_glob": [],
+                    "deps": [],
+                    "target_override": "//third_party/vendored:real_pkg",
+                }
+            ),
+        )
+
+        parsed_starlark = parse_starlark(self.tmpdir / "BUILD.bazel")
+
+        # Validate that there are none of the usual targets generated.
+        self.assertListEqual(parsed_starlark["py_binary"].mock_calls, [])
+        self.assertListEqual(parsed_starlark["py_library"].mock_calls, [])
+
+        # Validate the override.
+        self.assertListEqual(
+            parsed_starlark["alias"].mock_calls,
+            [
+                unittest.mock.call(
+                    name="pkg",
+                    actual="//third_party/vendored:real_pkg",
                 ),
             ],
         )

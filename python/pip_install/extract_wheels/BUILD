@@ -64,6 +64,9 @@ cc_library(
         "pkg_e": package_annotation(
             deps = ["//some:dep"],
         ),
+        "pkg_f": package_annotation(
+            target_override = "//third_party/vendored:real_pkg_f",
+        ),
     },
     tags = ["manual"],
 )

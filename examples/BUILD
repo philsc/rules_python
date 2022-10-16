@@ -28,6 +28,11 @@ bazel_integration_test(
 )
 
 bazel_integration_test(
+    name = "pip_parse_target_override_example",
+    timeout = "long",
+)
+
+bazel_integration_test(
     name = "pip_parse_vendored_example",
     timeout = "long",
     tags = ["fix-windows"],

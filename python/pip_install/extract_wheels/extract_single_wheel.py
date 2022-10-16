@@ -5,9 +5,13 @@ import os
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
+from typing import Any, Dict, List, Set
 
 from python.pip_install.extract_wheels import arguments, bazel, requirements
-from python.pip_install.extract_wheels.annotation import annotation_from_str_path
+from python.pip_install.extract_wheels.annotation import (
+    annotation_from_str_path,
+    Annotation,
+)
 
 
 def configure_reproducible_wheels() -> None:
@@ -35,6 +39,59 @@ def configure_reproducible_wheels() -> None:
         os.environ["PYTHONHASHSEED"] = "0"
 
 
+def download_and_extract_wheel(
+    isolated: bool,
+    download_only: bool,
+    deserialized_args: Dict[str, Any],
+    requirement: str,
+    enable_implicit_namespace_pkgs: bool,
+    repo_prefix: str,
+    annotation: Annotation,
+    extras: Dict[str, Set[str]],
+) -> None:
+    configure_reproducible_wheels()
+
+    pip_args = (
+        [sys.executable, "-m", "pip"]
+        + (["--isolated"] if isolated else [])
+        + ["download" if download_only else "wheel", "--no-deps"]
+        + deserialized_args["extra_pip_args"]
+    )
+
+    requirement_file = NamedTemporaryFile(mode="wb", delete=False)
+    try:
+        requirement_file.write(requirement.encode("utf-8"))
+        requirement_file.flush()
+        # Close the file so pip is allowed to read it when running on Windows.
+        # For more information, see: https://bugs.python.org/issue14243
+        requirement_file.close()
+        # Requirement specific args like --hash can only be passed in a requirements file,
+        # so write our single requirement into a temp file in case it has any of those flags.
+        pip_args.extend(["-r", requirement_file.name])
+
+        env = os.environ.copy()
+        env.update(deserialized_args["environment"])
+        # Assumes any errors are logged by pip so do nothing. This command will fail if pip fails
+        subprocess.run(pip_args, check=True, env=env)
+    finally:
+        try:
+            os.unlink(requirement_file.name)
+        except OSError as e:
+            if e.errno != errno.ENOENT:
+                raise
+
+    whl = next(iter(glob.glob("*.whl")))
+    bazel.extract_wheel(
+        wheel_file=whl,
+        extras=extras,
+        pip_data_exclude=deserialized_args["pip_data_exclude"],
+        enable_implicit_namespace_pkgs=enable_implicit_namespace_pkgs,
+        incremental=True,
+        repo_prefix=repo_prefix,
+        annotation=annotation,
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Build and/or fetch a single wheel based on the requirement passed in"
@@ -55,50 +112,24 @@ def main() -> None:
     deserialized_args = dict(vars(args))
     arguments.deserialize_structured_args(deserialized_args)
 
-    configure_reproducible_wheels()
-
-    pip_args = (
-        [sys.executable, "-m", "pip"]
-        + (["--isolated"] if args.isolated else [])
-        + ["download" if args.download_only else "wheel", "--no-deps"]
-        + deserialized_args["extra_pip_args"]
-    )
-
-    requirement_file = NamedTemporaryFile(mode="wb", delete=False)
-    try:
-        requirement_file.write(args.requirement.encode("utf-8"))
-        requirement_file.flush()
-        # Close the file so pip is allowed to read it when running on Windows.
-        # For more information, see: https://bugs.python.org/issue14243
-        requirement_file.close()
-        # Requirement specific args like --hash can only be passed in a requirements file,
-        # so write our single requirement into a temp file in case it has any of those flags.
-        pip_args.extend(["-r", requirement_file.name])
-
-        env = os.environ.copy()
-        env.update(deserialized_args["environment"])
-        # Assumes any errors are logged by pip so do nothing. This command will fail if pip fails
-        subprocess.run(pip_args, check=True, env=env)
-    finally:
-        try:
-            os.unlink(requirement_file.name)
-        except OSError as e:
-            if e.errno != errno.ENOENT:
-                raise
-
     name, extras_for_pkg = requirements._parse_requirement_for_extra(args.requirement)
     extras = {name: extras_for_pkg} if extras_for_pkg and name else dict()
 
-    whl = next(iter(glob.glob("*.whl")))
-    bazel.extract_wheel(
-        wheel_file=whl,
-        extras=extras,
-        pip_data_exclude=deserialized_args["pip_data_exclude"],
-        enable_implicit_namespace_pkgs=args.enable_implicit_namespace_pkgs,
-        incremental=True,
-        repo_prefix=args.repo_prefix,
-        annotation=args.annotation,
-    )
+    # If we're overriding this target with a vendored version or a separately
+    # imported version, skip all the download and unpacking steps.
+    if args.annotation.target_override:
+        bazel.set_up_target_override(annotation=args.annotation)
+    else:
+        download_and_extract_wheel(
+            isolated=args.isolated,
+            download_only=args.download_only,
+            deserialized_args=deserialized_args,
+            requirement=args.requirement,
+            enable_implicit_namespace_pkgs=args.enable_implicit_namespace_pkgs,
+            repo_prefix=args.repo_prefix,
+            annotation=args.annotation,
+            extras=extras,
+        )
 
 
 if __name__ == "__main__":
