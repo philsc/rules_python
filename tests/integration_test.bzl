@@ -16,13 +16,12 @@ load(
     "@rules_bazel_integration_test//bazel_integration_test:defs.bzl",
     "bazel_integration_test",
     "bazel_integration_tests",
-    "default_test_runner",
     "integration_test_utils",
 )
 
 def rules_python_integration_test(name, workspace_path=None, bzlmod=False, tags=None, **kwargs):
     workspace_path = workspace_path or name.removesuffix("_example")
-    test_runner = ":simple_test_runner" if bzlmod else ":legacy_test_runner"
+    test_runner = "//tests:simple_test_runner" if bzlmod else "//tests:legacy_test_runner"
 
     bazel_integration_tests(
         name = name,
@@ -40,8 +39,24 @@ def rules_python_integration_test(name, workspace_path=None, bzlmod=False, tags=
             # https://github.com/bazelbuild/bazel/issues/16871
             "no-sandbox",
             "no-remote",
-            # Don't run the tests by default with expansion.
-            "manual",
         ],
         **kwargs
+    )
+
+def rules_python_integration_test_suite(name, tests):
+    """Exposes a test_suite for the specified rules_python_integration_test's.
+
+    The upstream bazel_integration_tests tags the tests as `manual` so we have
+    to wrap those tests in a test_suite().
+    """
+    native.test_suite(
+        name = "integration_tests",
+        tests = [
+            test
+            for test_label in tests
+            for test in integration_test_utils.bazel_integration_test_names(
+                test_label,
+                bazel_binaries.versions.all,
+            )
+        ],
     )
