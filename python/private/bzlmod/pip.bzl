@@ -27,6 +27,7 @@ load(
 load("//python/pip_install:requirements_parser.bzl", parse_requirements = "parse")
 load("//python/private:normalize_name.bzl", "normalize_name")
 load("//python/private:parse_whl_name.bzl", "parse_whl_name")
+load("//python/private:render_pkg_aliases.bzl", "whl_alias")
 load("//python/private:version_label.bzl", "version_label")
 load(":pip_repository.bzl", "pip_repository")
 
@@ -151,23 +152,27 @@ def _create_whl_repos(module_ctx, pip_attr, whl_map, whl_overrides):
         for mod, whl_name in pip_attr.whl_modifications.items():
             whl_modifications[whl_name] = mod
 
-    requirement_cycles = {
-        name: [normalize_name(whl_name) for whl_name in whls]
-        for name, whls in pip_attr.experimental_requirement_cycles.items()
-    }
+    if pip_attr.experimental_requirement_cycles:
+        requirement_cycles = {
+            name: [normalize_name(whl_name) for whl_name in whls]
+            for name, whls in pip_attr.experimental_requirement_cycles.items()
+        }
 
-    whl_group_mapping = {
-        whl_name: group_name
-        for group_name, group_whls in requirement_cycles.items()
-        for whl_name in group_whls
-    }
+        whl_group_mapping = {
+            whl_name: group_name
+            for group_name, group_whls in requirement_cycles.items()
+            for whl_name in group_whls
+        }
 
-    group_repo = "%s__groups" % (pip_name,)
-    group_library(
-        name = group_repo,
-        repo_prefix = pip_name + "_",
-        groups = pip_attr.experimental_requirement_cycles,
-    )
+        group_repo = "%s__groups" % (pip_name,)
+        group_library(
+            name = group_repo,
+            repo_prefix = pip_name + "_",
+            groups = pip_attr.experimental_requirement_cycles,
+        )
+    else:
+        whl_group_mapping = {}
+        requirement_cycles = {}
 
     # Create a new wheel library for each of the different whls
     for whl_name, requirement_line in requirements:
@@ -176,11 +181,13 @@ def _create_whl_repos(module_ctx, pip_attr, whl_map, whl_overrides):
         # to.
         annotation = whl_modifications.get(whl_name)
         whl_name = normalize_name(whl_name)
+
         group_name = whl_group_mapping.get(whl_name)
         group_deps = requirement_cycles.get(group_name, [])
 
+        repo_name = "{}_{}".format(pip_name, whl_name)
         whl_library(
-            name = "%s_%s" % (pip_name, whl_name),
+            name = repo_name,
             requirement = requirement_line,
             repo = pip_name,
             repo_prefix = pip_name + "_",
@@ -205,10 +212,15 @@ def _create_whl_repos(module_ctx, pip_attr, whl_map, whl_overrides):
             group_deps = group_deps,
         )
 
-        if whl_name not in whl_map[hub_name]:
-            whl_map[hub_name][whl_name] = {}
-
-        whl_map[hub_name][whl_name][_major_minor_version(pip_attr.python_version)] = pip_name + "_"
+        major_minor = _major_minor_version(pip_attr.python_version)
+        whl_map[hub_name].setdefault(whl_name, []).append(
+            whl_alias(
+                repo = repo_name,
+                version = major_minor,
+                # Call Label() to canonicalize because its used in a different context
+                config_setting = Label("//python/config_settings:is_python_" + major_minor),
+            ),
+        )
 
 def _pip_impl(module_ctx):
     """Implementation of a class tag that creates the pip hub and corresponding pip spoke whl repositories.
@@ -358,7 +370,10 @@ def _pip_impl(module_ctx):
         pip_repository(
             name = hub_name,
             repo_name = hub_name,
-            whl_map = whl_map,
+            whl_map = {
+                key: json.encode(value)
+                for key, value in whl_map.items()
+            },
             default_version = _major_minor_version(DEFAULT_PYTHON_VERSION),
         )
 

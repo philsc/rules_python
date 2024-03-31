@@ -19,7 +19,60 @@ A brief description of the categories of changes:
 
 ## Unreleased
 
+### Changed
+
+### Fixed
+
+* (whl_library): Fix the experimental_target_platforms overriding for platform
+  specific wheels when the wheels are for any python interpreter version. Fixes
+  [#1810](https://github.com/bazelbuild/rules_python/issues/1810).
+* (gazelle) In `project` or `package` generation modes, do not generate `py_test`
+  rules when there are no test files and do not set `main = "__test__.py"` when
+  that file doesn't exist.
+* (whl_library) The group redirection is only added when the package is part of
+  the group potentially fixing aspects that want to traverse a `py_library` graph.
+  Fixes [#1760](https://github.com/bazelbuild/rules_python/issues/1760).
+
+### Added
+
+* (toolchains) Added armv7 platform definition for python toolchains.
+
+* New Python versions available: `3.11.8`, `3.12.2` using
+  https://github.com/indygreg/python-build-standalone/releases/tag/20240224.
+* (gazelle) Added a new `python_visibility` directive to control visibility
+  of generated targets by appending additional visibility labels.
+* (gazelle) Added a new `python_default_visibility` directive to control the
+  _default_ visibility of generated targets. See the [docs][python_default_visibility]
+  for details.
+
+* (wheel) Add support for `data_files` attributes in py_wheel rule
+  ([#1777](https://github.com/bazelbuild/rules_python/issues/1777))
+
+* (py_wheel) `bzlmod` installations now provide a `twine` setup for the default
+  Python toolchain in `rules_python` for version 3.11.
+
 [0.XX.0]: https://github.com/bazelbuild/rules_python/releases/tag/0.XX.0
+[python_default_visibility]: gazelle/README.md#directive-python_default_visibility
+
+### Changed
+
+* (coverage) Bump `coverage.py` to [7.4.3](https://github.com/nedbat/coveragepy/blob/master/CHANGES.rst#version-743--2024-02-23).
+
+## [0.31.0] - 2024-02-12
+
+[0.31.0]: https://github.com/bazelbuild/rules_python/releases/tag/0.31.0
+
+### Changed
+
+* For Bazel 7, the core rules and providers are now implemented in rules_python
+  directly and the rules bundled with Bazel are not used. Bazel 6 and earlier
+  continue to use the Bazel builtin symbols. Of particular note, this means,
+  under Bazel 7, the builtin global symbol `PyInfo` is **not** the same as what
+  is loaded from rules_python. The same is true of `PyRuntimeInfo`.
+
+## [0.30.0] - 2024-02-12
+
+[0.30.0]: https://github.com/bazelbuild/rules_python/releases/tag/0.30.0
 
 ### Changed
 
@@ -76,6 +129,13 @@ A brief description of the categories of changes:
   if e.g. `3.8` is selected. That also simplifies `.bazelrc` for any users
   that set the default `python_version` string flag in that way.
 
+* (toolchain) The runtime's shared libraries (libpython.so et al) can be
+  accessed using `@rules_python//python/cc:current_py_cc_libs`. This uses
+  toolchain resolution, so the files are from the same runtime used to run a
+  target. If you were previously using e.g. `@python_3_11//:libpython`, then
+  switch to `:current_py_cc_libs` for looser coupling to the underlying runtime
+  repo implementation.
+
 * (repo rules) The environment variable `RULES_PYTHON_REPO_DEBUG=1` can be
   set to make repository rules log detailed information about what they're
   up to.
@@ -83,7 +143,8 @@ A brief description of the categories of changes:
 * (coverage) Add support for python 3.12 and bump `coverage.py` to
   7.4.1.
 
-## 0.29.0 - 2024-01-22
+
+## [0.29.0] - 2024-01-22
 
 [0.29.0]: https://github.com/bazelbuild/rules_python/releases/tag/0.29.0
 
@@ -215,7 +276,6 @@ A brief description of the categories of changes:
 * (gazelle) `file` generation mode can now also add `__init__.py` to the srcs
   attribute for every target in the package. This is enabled through a separate
   directive `python_generation_mode_per_file_include_init`.
-
 
 ## [0.27.0] - 2023-11-16
 

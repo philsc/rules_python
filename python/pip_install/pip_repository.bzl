@@ -26,7 +26,7 @@ load("//python/private:envsubst.bzl", "envsubst")
 load("//python/private:normalize_name.bzl", "normalize_name")
 load("//python/private:parse_whl_name.bzl", "parse_whl_name")
 load("//python/private:patch_whl.bzl", "patch_whl")
-load("//python/private:render_pkg_aliases.bzl", "render_pkg_aliases")
+load("//python/private:render_pkg_aliases.bzl", "render_pkg_aliases", "whl_alias")
 load("//python/private:repo_utils.bzl", "REPO_DEBUG_ENV_VAR", "repo_utils")
 load("//python/private:toolchains_repo.bzl", "get_host_os_arch")
 load("//python/private:whl_target_platforms.bzl", "whl_target_platforms")
@@ -202,10 +202,9 @@ def _parse_optional_attrs(rctx, args):
     if use_isolated(rctx, rctx.attr):
         args.append("--isolated")
 
-    # At the time of writing, the very latest Bazel, as in `USE_BAZEL_VERSION=last_green bazelisk`
-    # supports rctx.getenv(name, default): When building incrementally, any change to the value of
-    # the variable named by name will cause this repository to be re-fetched. That hasn't yet made
-    # its way into the official releases, though.
+    # Bazel version 7.1.0 and later (and rolling releases from version 8.0.0-pre.20240128.3)
+    # support rctx.getenv(name, default): When building incrementally, any change to the value of
+    # the variable named by name will cause this repository to be re-fetched.
     if "getenv" in dir(rctx):
         getenv = rctx.getenv
     else:
@@ -374,7 +373,13 @@ def _pip_repository_impl(rctx):
         config["experimental_target_platforms"] = rctx.attr.experimental_target_platforms
 
     macro_tmpl = "@%s//{}:{}" % rctx.attr.name
-    aliases = render_pkg_aliases(repo_name = rctx.attr.name, bzl_packages = bzl_packages)
+
+    aliases = render_pkg_aliases(
+        aliases = {
+            pkg: [whl_alias(repo = rctx.attr.name + "_" + pkg)]
+            for pkg in bzl_packages or []
+        },
+    )
     for path, contents in aliases.items():
         rctx.file(path, contents)
 
@@ -451,7 +456,7 @@ A list of environment variables to substitute (e.g. `["PIP_INDEX_URL",
 "PIP_RETRIES"]`). The corresponding variables are expanded in `extra_pip_args`
 using the syntax `$VARNAME` or `${VARNAME}` (expanding to empty string if unset)
 or `${VARNAME:-default}` (expanding to default if the variable is unset or empty
-in the environment). Note: On Bazel 6 and Bazel 7 changes to the variables named
+in the environment). Note: On Bazel 6 and Bazel 7.0 changes to the variables named
 here do not cause packages to be re-fetched. Don't fetch different things based
 on the value of these variables.
 """,
@@ -796,8 +801,11 @@ def _whl_library_impl(rctx):
             # NOTE @aignas 2023-12-04: if the wheel is a platform specific
             # wheel, we only include deps for that target platform
             target_platforms = [
-                "{}_{}_{}".format(parsed_whl.abi_tag, p.os, p.cpu)
-                for p in whl_target_platforms(parsed_whl.platform_tag)
+                p.target_platform
+                for p in whl_target_platforms(
+                    platform_tag = parsed_whl.platform_tag,
+                    abi_tag = parsed_whl.abi_tag,
+                )
             ]
 
     repo_utils.execute_checked(
