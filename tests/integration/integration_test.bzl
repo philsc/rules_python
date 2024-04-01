@@ -25,6 +25,7 @@ def rules_python_integration_test(
         workspace_path = None,
         bzlmod = True,
         gazelle_plugin = False,
+        test_runner = None,
         tags = None,
         **kwargs):
     """Runs a bazel-in-bazel integration test.
@@ -40,15 +41,16 @@ def rules_python_integration_test(
         **kwargs: Passed to the upstream `bazel_integration_tests` rule.
     """
     workspace_path = workspace_path or name.removesuffix("_test")
-    if bzlmod:
-        if gazelle_plugin:
-            test_runner = "//tests/integration:test_runner_gazelle_plugin"
+    if not test_runner:
+        if bzlmod:
+            if gazelle_plugin:
+                test_runner = "//tests/integration:test_runner_gazelle_plugin"
+            else:
+                test_runner = "//tests/integration:test_runner"
+        elif gazelle_plugin:
+            test_runner = "//tests/integration:workspace_test_runner_gazelle_plugin"
         else:
-            test_runner = "//tests/integration:test_runner"
-    elif gazelle_plugin:
-        test_runner = "//tests/integration:workspace_test_runner_gazelle_plugin"
-    else:
-        test_runner = "//tests/integration:workspace_test_runner"
+            test_runner = "//tests/integration:workspace_test_runner"
 
     # Because glob expansion happens at loading time, the bazel-* symlinks
     # in the workspaces can recursively expand to tens-of-thousands of entries,

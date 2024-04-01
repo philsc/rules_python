@@ -12,11 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("//python:defs.bzl", "py_binary")
 load("//tests/integration:integration_test.bzl", "rules_python_integration_test")
 
 licenses(["notice"])  # Apache 2.0
 
+py_binary(
+    name = "pypi_install_test_runner",
+    srcs = ["pypi_install_test_runner.py"],
+    data = [
+        "@rules_bazel_integration_test//tools:create_scratch_dir",
+    ],
+    deps = [
+        "//python/runfiles",
+    ],
+)
+
 rules_python_integration_test(
     name = "pypi_install",
     bzlmod = False,
+    test_runner = ":pypi_install_test_runner",
 )

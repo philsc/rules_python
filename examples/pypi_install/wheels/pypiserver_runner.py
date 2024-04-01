@@ -1,3 +1,4 @@
+import argparse
 import shutil
 import sys
 import tempfile
@@ -18,7 +19,23 @@ WHEELS = (
     "pkg_f-1.0-py3-none-any.whl",
 )
 
-def main():
+def run_pypiserver(wheelhouse: Path, port: int):
+    sys.argv = [
+        "pypiserver",
+        "run",
+        "-v",
+        "-p",
+        str(port),
+        str(wheelhouse),
+    ]
+    print("Running: " + " ".join(sys.argv))
+    pypiserver_main()
+
+def main(argv):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", default=8989, help="Port for pypiserver")
+    args = parser.parse_args(argv[1:])
+
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         wheelhouse = tmpdir / "wheelhouse"
@@ -27,16 +44,8 @@ def main():
         for wheel in WHEELS:
             shutil.copy(r.Rlocation("rules_python_pypi_install_example/wheels/{}".format(wheel)), wheelhouse)
 
-        sys.argv = [
-            "pypiserver",
-            "run",
-            "-p",
-            "8989",
-            str(wheelhouse),
-        ]
-        print("Running: " + " ".join(sys.argv))
-        pypiserver_main()
+        run_pypiserver(wheelhouse, args.port)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv))
