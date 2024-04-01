@@ -6,9 +6,6 @@ from pathlib import Path
 
 from pypiserver.__main__ import main as pypiserver_main
 
-from python.runfiles import runfiles
-
-RUNFILES = runfiles.Create()
 
 def run_pypiserver(wheelhouse: Path, port: int):
     sys.argv = [

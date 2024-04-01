@@ -3,6 +3,15 @@ load("@rules_python//python:pip.bzl", "compile_pip_requirements")
 load("@rules_python//python:packaging.bzl", "py_package", "py_wheel")
 
 
+WHEELS = [
+    "pkg_a",
+    "pkg_b",
+    "pkg_c",
+    "pkg_d",
+    "pkg_e",
+    "pkg_f",
+]
+
 [(py_library(
     name = "{}_py_library".format(name),
     srcs = glob([
@@ -12,14 +21,7 @@ load("@rules_python//python:packaging.bzl", "py_package", "py_wheel")
     name = "{}_py_package".format(name),
     packages = ["wheels.src.{}".format(name)],
     deps = [":{}_py_library".format(name)],
-)) for name in (
-    "pkg_a",
-    "pkg_b",
-    "pkg_c",
-    "pkg_d",
-    "pkg_e",
-    "pkg_f",
-)]
+)) for name in WHEELS)]
 
 
 py_wheel(
@@ -64,7 +66,7 @@ py_wheel(
     strip_path_prefixes = ["wheels/src"],
 )
 
-# aarch64-specific.
+# Dependency when running for aarch64.
 py_wheel(
     name = "pkg_e",
     distribution = "pkg-e",
@@ -81,24 +83,13 @@ py_wheel(
     strip_path_prefixes = ["wheels/src"],
 )
 
-WHEELS = [
-    "pkg_a",
-    "pkg_b",
-    "pkg_c",
-    "pkg_d",
-    "pkg_e",
-    "pkg_f",
-]
-
 py_binary(
     name = "pypiserver_runner",
     srcs = ["pypiserver_runner.py"],
     deps = [
         "@pypi__pypiserver//:lib",
     ],
-    data = [
-        "@rules_python//python/runfiles",
-    ] + [":{}".format(wheel) for wheel in WHEELS],
+    data = [":{}".format(wheel) for wheel in WHEELS],
     args = [
         "$(rootpath :{})".format(wheel)
         for wheel in WHEELS
