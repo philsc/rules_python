@@ -50,9 +50,8 @@ def start_pypiserver(cwd: Path, bazel_args: List[str]) -> int:
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_file_path = Path(temp_dir) / "output"
 
-        with temp_file_path.open("w") as temp_file:
-
-            for port in range(8989, 10000):
+        for port in range(8989, 10000):
+            with temp_file_path.open("w") as temp_file:
                 log("Starting pypiserver.")
                 pypiserver = subprocess.Popen([
                     BIT_BAZEL_BINARY,
@@ -75,6 +74,7 @@ def start_pypiserver(cwd: Path, bazel_args: List[str]) -> int:
                     if pypiserver.poll() is not None:
                         stop_pypiserver()
                         if "Address already in use" in output:
+                            log(f"Port {port} is in use. Trying the next one.")
                             continue
                         log(output)
                         raise RuntimeError("Failed to execute pypiserver")

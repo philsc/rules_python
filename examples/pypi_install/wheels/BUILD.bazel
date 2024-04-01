@@ -21,7 +21,7 @@ WHEELS = [
     name = "{}_py_package".format(name),
     packages = ["wheels.src.{}".format(name)],
     deps = [":{}_py_library".format(name)],
-)) for name in WHEELS)]
+)) for name in WHEELS]
 
 
 py_wheel(
