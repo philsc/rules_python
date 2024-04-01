@@ -6,6 +6,7 @@ import shutil
 import sys
 import time
 import threading
+import tempfile
 from pathlib import Path
 from typing import List
 
@@ -20,6 +21,11 @@ CREATE_SCRATCH_DIR = RUNFILES.Rlocation("rules_bazel_integration_test/tools/crea
 
 PYPI_URL_MATCH = re.compile(f"http://localhost:\d+/packages")
 
+def log(*text: List[str]):
+    sys.stdout.write(" ".join(str(t) for t in text))
+    sys.stdout.write("\n")
+    sys.stdout.flush()
+
 def make_scratch_dir() -> Path:
     scratch_dir = Path(subprocess.check_output([
         CREATE_SCRATCH_DIR,
@@ -27,7 +33,11 @@ def make_scratch_dir() -> Path:
         BIT_WORKSPACE_DIR,
     ]).decode("utf-8").strip())
 
-    atexit.register(shutil.rmtree, scratch_dir)
+    def clean_scratch_dir():
+        log("Cleaning the scratch directory.")
+        shutil.rmtree(scratch_dir)
+
+    atexit.register(clean_scratch_dir)
 
     return scratch_dir
 
@@ -37,54 +47,43 @@ def start_pypiserver(cwd: Path, bazel_args: List[str]) -> int:
     env.pop("RUNFILES_MANIFEST_FILE", None)
     env.pop("PYTHONPATH", None)
 
-    for port in range(8989, 10000):
-        print("Trying: ", BIT_BAZEL_BINARY)
-        print("cwd: ", cwd)
-        pypiserver = subprocess.Popen([
-            BIT_BAZEL_BINARY,
-            "run",
-            "//wheels:pypiserver_runner",
-        ] + bazel_args + [
-            "--",
-            f"--port={port}",
-        ], stdout=subprocess.PIPE, cwd=cwd, env=env)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_file_path = Path(temp_dir) / "output"
 
-        output = ""
+        with temp_file_path.open("w") as temp_file:
 
-        def read_output():
-            while True:
-                text = pypiserver.stdout.read(1024)
-                if not text:
-                    break
-                text = text.decode("utf-8")
-                print(text)
-                output += text
+            for port in range(8989, 10000):
+                log("Starting pypiserver.")
+                pypiserver = subprocess.Popen([
+                    BIT_BAZEL_BINARY,
+                    "run",
+                    "//wheels:pypiserver_runner",
+                ] + bazel_args + [
+                    "--",
+                    f"--port={port}",
+                ], stdout=temp_file, stderr=subprocess.STDOUT, cwd=cwd, env=env)
 
-        reader_thread = threading.Thread(target=read_output)
-        reader_thread.start()
+                def stop_pypiserver():
+                    log("Stopping pypiserver.")
+                    pypiserver.terminate()
+                    pypiserver.wait()
 
-        def stop_pypiserver():
-            print("Stopping pypiserver")
-            pypiserver.terminate()
-            pypiserver.wait()
-            print("Waiting for reader thread to shut down.")
-            reader_thread.join()
+                while True:
+                    output = temp_file_path.read_text()
+                    if "Hit Ctrl-C to quit" in output:
+                        break
+                    if pypiserver.poll() is not None:
+                        stop_pypiserver()
+                        if "Address already in use" in output:
+                            continue
+                        raise RuntimeError("Failed to execute pypiserver")
+                    time.sleep(0.5)
 
-        while True:
-            if "Hit Ctrl-C to quit" in output:
-                break
-            if pypiserver.poll() is not None:
-                stop_pypiserver()
-                if "Address already in use" in output:
-                    continue
-                raise RuntimeError("Failed to execute pypiserver")
-            time.sleep(0.5)
+                atexit.register(stop_pypiserver)
 
-        atexit.register(stop_pypiserver)
+                return port
 
-        return port
-
-    raise RuntimeError("Could not find an available port for pypiserver.")
+            raise RuntimeError("Could not find an available port for pypiserver.")
 
 def fix_up_intermediate_files(cwd: Path, port: int):
     for filename in cwd.glob("intermediate_file_*.json"):
@@ -99,8 +98,12 @@ def main(argv):
         bazel_args = ["--enable_bzlmod"]
 
     scratch_dir = make_scratch_dir()
+    log("Made scratch directory:", scratch_dir)
+    log("Bazel", BIT_BAZEL_BINARY)
     port = start_pypiserver(scratch_dir, bazel_args)
+    log("Started pypiserver at port", port)
     fix_up_intermediate_files(scratch_dir, port)
+    log("Fixed up intermediate files")
 
     subprocess.check_call([BIT_BAZEL_BINARY, "test", "//..."] + bazel_args, cwd=scratch_dir)
 

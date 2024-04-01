@@ -36,6 +36,7 @@ def main(argv):
     parser.add_argument("--port", default=8989, help="Port for pypiserver")
     args = parser.parse_args(argv[1:])
 
+    print("Starting up pypiserver_runner.")
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         wheelhouse = tmpdir / "wheelhouse"
@@ -48,4 +49,5 @@ def main(argv):
 
 
 if __name__ == "__main__":
+    print("Starting up pypiserver_runner.")
     sys.exit(main(sys.argv))
