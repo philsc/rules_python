@@ -32,4 +32,7 @@ rules_python_integration_test(
     name = "pypi_install",
     bzlmod = False,
     test_runner = ":pypi_install_test_runner",
+    env = {
+        "PYPI_INSTALL_USE_BZLMOD": "False",
+    },
 )

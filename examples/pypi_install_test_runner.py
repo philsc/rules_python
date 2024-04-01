@@ -7,6 +7,7 @@ import sys
 import time
 import threading
 from pathlib import Path
+from typing import List
 
 from python.runfiles import runfiles
 
@@ -30,7 +31,7 @@ def make_scratch_dir() -> Path:
 
     return scratch_dir
 
-def start_pypiserver(cwd: Path) -> int:
+def start_pypiserver(cwd: Path, bazel_args: List[str]) -> int:
     env = os.environ.copy()
     env.pop("RUNFILES_DIR", None)
     env.pop("RUNFILES_MANIFEST_FILE", None)
@@ -43,6 +44,7 @@ def start_pypiserver(cwd: Path) -> int:
             BIT_BAZEL_BINARY,
             "run",
             "//wheels:pypiserver_runner",
+        ] + bazel_args + [
             "--",
             f"--port={port}",
         ], stdout=subprocess.PIPE, cwd=cwd, env=env)
@@ -91,11 +93,16 @@ def fix_up_intermediate_files(cwd: Path, port: int):
         filename.write_text(text)
 
 def main(argv):
+    if bool(os.environ["PYPI_INSTALL_USE_BZLMOD"]):
+        bazel_args = ["--noenable_bzlmod"]
+    else:
+        bazel_args = ["--enable_bzlmod"]
+
     scratch_dir = make_scratch_dir()
-    port = start_pypiserver(scratch_dir)
+    port = start_pypiserver(scratch_dir, bazel_args)
     fix_up_intermediate_files(scratch_dir, port)
 
-    subprocess.check_call([BIT_BAZEL_BINARY, "test", "//..."], cwd=scratch_dir)
+    subprocess.check_call([BIT_BAZEL_BINARY, "test", "//..."] + bazel_args, cwd=scratch_dir)
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
