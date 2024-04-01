@@ -54,7 +54,9 @@ def start_pypiserver(cwd: Path) -> int:
                 text = pypiserver.stdout.read(1024)
                 if not text:
                     break
-                output += text.decode("utf-8")
+                text = text.decode("utf-8")
+                print(text)
+                output += text
 
         reader_thread = threading.Thread(target=read_output)
         reader_thread.start()
@@ -66,13 +68,14 @@ def start_pypiserver(cwd: Path) -> int:
             print("Waiting for reader thread to shut down.")
             reader_thread.join()
 
-        if "Address already in use" in output:
-            stop_pypiserver()
-            continue
-
         while True:
             if "Hit Ctrl-C to quit" in output:
                 break
+            if pypiserver.poll() is not None:
+                stop_pypiserver()
+                if "Address already in use" in output:
+                    continue
+                raise RuntimeError("Failed to execute pypiserver")
             time.sleep(0.5)
 
         atexit.register(stop_pypiserver)
