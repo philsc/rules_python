@@ -92,10 +92,11 @@ def fix_up_intermediate_files(cwd: Path, port: int):
         filename.write_text(text)
 
 def main(argv):
+    bazel_args = []
     if bool(os.environ["PYPI_INSTALL_USE_BZLMOD"]):
-        bazel_args = ["--noenable_bzlmod"]
+        bazel_args.append("--noenable_bzlmod")
     else:
-        bazel_args = ["--enable_bzlmod"]
+        bazel_args.append("--enable_bzlmod")
 
     scratch_dir = make_scratch_dir()
     log("Made scratch directory:", scratch_dir)

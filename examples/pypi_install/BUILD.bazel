@@ -13,8 +13,8 @@ py_binary(
 )
 
 py_test(
-    name = "test",
-    srcs = ["test.py"],
+    name = "main_test",
+    srcs = ["main_test.py"],
     deps = [":main"],
 )
 
