@@ -81,6 +81,15 @@ py_wheel(
     strip_path_prefixes = ["wheels/src"],
 )
 
+WHEELS = [
+    "pkg_a",
+    "pkg_b",
+    "pkg_c",
+    "pkg_d",
+    "pkg_e",
+    "pkg_f",
+]
+
 py_binary(
     name = "pypiserver_runner",
     srcs = ["pypiserver_runner.py"],
@@ -88,12 +97,10 @@ py_binary(
         "@pypi__pypiserver//:lib",
     ],
     data = [
-        ":pkg_a",
-        ":pkg_b",
-        ":pkg_c",
-        ":pkg_d",
-        ":pkg_e",
-        ":pkg_f",
         "@rules_python//python/runfiles",
+    ] + [":{}".format(wheel) for wheel in WHEELS],
+    args = [
+        "$(rootpath :{})".format(wheel)
+        for wheel in WHEELS
     ],
 )

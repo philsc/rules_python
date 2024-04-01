@@ -8,21 +8,13 @@ from pypiserver.__main__ import main as pypiserver_main
 
 from python.runfiles import runfiles
 
-r = runfiles.Create()
-
-WHEELS = (
-    "pkg_a-1.0-py3-none-any.whl",
-    "pkg_b-1.1-py3-none-any.whl",
-    "pkg_c-2.0-py3-none-any.whl",
-    "pkg_d-3.0-py3-none-any.whl",
-    "pkg_e-4.0-py3-none-any.whl",
-    "pkg_f-1.0-py3-none-any.whl",
-)
+RUNFILES = runfiles.Create()
 
 def run_pypiserver(wheelhouse: Path, port: int):
     sys.argv = [
         "pypiserver",
         "run",
+        # Specify -v so that we get a message when the server has started up.
         "-v",
         "-p",
         str(port),
@@ -34,6 +26,7 @@ def run_pypiserver(wheelhouse: Path, port: int):
 def main(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", default=8989, help="Port for pypiserver")
+    parser.add_argument("wheel", nargs="+", action="extend")
     args = parser.parse_args(argv[1:])
 
     print("Starting up pypiserver_runner.")
@@ -42,8 +35,8 @@ def main(argv):
         wheelhouse = tmpdir / "wheelhouse"
         wheelhouse.mkdir()
 
-        for wheel in WHEELS:
-            shutil.copy(r.Rlocation("rules_python_pypi_install_example/wheels/{}".format(wheel)), wheelhouse)
+        for wheel in args.wheel:
+            shutil.copy(wheel, wheelhouse)
 
         run_pypiserver(wheelhouse, args.port)
 

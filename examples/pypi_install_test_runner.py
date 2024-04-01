@@ -76,6 +76,7 @@ def start_pypiserver(cwd: Path, bazel_args: List[str]) -> int:
                         stop_pypiserver()
                         if "Address already in use" in output:
                             continue
+                        log(output)
                         raise RuntimeError("Failed to execute pypiserver")
                     time.sleep(0.5)
 
