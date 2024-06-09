@@ -52,6 +52,14 @@ def start_pypiserver(cwd: Path, bazel_args: List[str]) -> int:
 
         for port in range(8989, 10000):
             with temp_file_path.open("w") as temp_file:
+
+                if attempt_pypiserver_start(cwd, bazel_args, temp_file, temp_file_path)
+                    atexit.register(stop_pypiserver)
+                    return port
+
+            raise RuntimeError("Could not find an available port for pypiserver.")
+
+
                 log("Starting pypiserver.")
                 pypiserver = subprocess.Popen([
                     BIT_BAZEL_BINARY,
@@ -65,20 +73,31 @@ def start_pypiserver(cwd: Path, bazel_args: List[str]) -> int:
                 def stop_pypiserver():
                     log("Stopping pypiserver.")
                     pypiserver.terminate()
-                    pypiserver.wait()
+                    pypiserver.communicate()
+
+                start_time = 0
 
                 while True:
                     output = temp_file_path.read_text()
-                    if "Hit Ctrl-C to quit" in output:
+
+                    # Give the process a couple of seconds to start up.
+                    if not start_time:
+                        if "Hit Ctrl-C to quit" in output:
+                            start_time = time.time()
+                    elif time.time() - start_time >= 2.0:
+                        log(output)
                         break
+
+                    # If the process has died, check why. If it's because of a
+                    # port already in use, try the next port.
                     if pypiserver.poll() is not None:
                         stop_pypiserver()
+                        log(output)
                         if "Address already in use" in output:
                             log(f"Port {port} is in use. Trying the next one.")
                             continue
-                        log(output)
                         raise RuntimeError("Failed to execute pypiserver")
-                    time.sleep(0.5)
+                    time.sleep(0.1)
 
                 atexit.register(stop_pypiserver)
 
