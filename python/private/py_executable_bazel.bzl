@@ -182,6 +182,8 @@ def _create_executable(
 
     venv = None
 
+    skip_stage2_bootstrap = ctx.attr.skip_stage2_bootstrap
+
     # The check for stage2_bootstrap_template is to support legacy
     # BuiltinPyRuntimeInfo providers, which is likely to come from
     # @bazel_tools//tools/python:autodetecting_toolchain, the toolchain used
@@ -291,6 +293,7 @@ def _create_executable(
         _create_stage1_bootstrap(
             ctx,
             output = bootstrap_output,
+            skip_stage2_bootstrap = skip_stage2_bootstrap,
             stage2_bootstrap = stage2_bootstrap,
             runtime_details = runtime_details,
             is_for_zip = False,
@@ -522,6 +525,7 @@ def _create_stage1_bootstrap(
         output,
         main_py = None,
         stage2_bootstrap = None,
+        skip_stage2_bootstrap = False,
         imports = None,
         is_for_zip,
         runtime_details,
@@ -545,6 +549,8 @@ def _create_stage1_bootstrap(
         "%target%": str(ctx.label),
         "%workspace_name%": ctx.workspace_name,
     }
+
+    subs["%skip_stage2_bootstrap%"] = "1" if skip_stage2_bootstrap else "0"
 
     if stage2_bootstrap:
         subs["%stage2_bootstrap%"] = "{}/{}".format(
@@ -696,6 +702,7 @@ def _create_executable_zip_file(
         output,
         zip_file,
         stage2_bootstrap,
+        #skip_stage2_bootstrap,
         runtime_details,
         venv):
     prelude = ctx.actions.declare_file(
@@ -706,6 +713,7 @@ def _create_executable_zip_file(
         _create_stage1_bootstrap(
             ctx,
             output = prelude,
+            #skip_stage2_bootstrap = skip_stage2_bootstrap,
             stage2_bootstrap = stage2_bootstrap,
             runtime_details = runtime_details,
             is_for_zip = True,

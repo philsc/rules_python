@@ -12,6 +12,7 @@ label_flag(
 
 py_binary(
     name = "repl",
+    skip_stage2_bootstrap = True,
     srcs = ["repl.py"],
     deps = [
         ":repl_dep",

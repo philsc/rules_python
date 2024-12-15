@@ -8,6 +8,7 @@ fi
 
 # runfiles-relative path
 STAGE2_BOOTSTRAP="%stage2_bootstrap%"
+SKIP_STAGE2_BOOTSTRAP="%skip_stage2_bootstrap%",
 
 # runfiles-relative path
 PYTHON_BINARY='%python_binary%'
@@ -168,14 +169,24 @@ fi
 
 export RUNFILES_DIR
 
-command=(
-  env
-  "${interpreter_env[@]}"
-  "$python_exe"
-  "${interpreter_args[@]}"
-  "$stage2_bootstrap"
-  "$@"
-)
+if [[ "${SKIP_STAGE2_BOOTSTRAP:-0}" != "1" ]]; then
+  command=(
+    env
+    "${interpreter_env[@]}"
+    "$python_exe"
+    "${interpreter_args[@]}"
+    "$stage2_bootstrap"
+    "$@"
+  )
+else
+  command=(
+    env
+    "${interpreter_env[@]}"
+    "$python_exe"
+    "${interpreter_args[@]}"
+    "$@"
+  )
+fi
 
 # We use `exec` instead of a child process so that signals sent directly (e.g.
 # using `kill`) to this process (the PID seen by the calling process) are

@@ -24,11 +24,12 @@ import uuid
 # Runfiles-relative path to the main Python source file.
 MAIN = "%main%"
 
-# Whether this script is used as a sitecustomize script.
-USED_AS_SITECUSTOMIZE = "%used_as_sitecustomize%"
-
 # ===== Template substitutions end =====
 
+
+# Whether this script is used as a sitecustomize script.
+def is_used_as_sitecustomize()
+    return os.environ.get("RULES_PYTHON_USE_STAGE2_AS_SITECUSTOMIZE", "0") == "1"
 
 # Return True if running on Windows
 def is_windows():
@@ -337,6 +338,7 @@ relative_files = True
 
 
 def main():
+    if 
     print_verbose("initial argv:", values=sys.argv)
     print_verbose("initial cwd:", os.getcwd())
     print_verbose("initial environ:", mapping=os.environ)
@@ -379,6 +381,10 @@ def main():
         os.environ[runfiles_envkey] = runfiles_envvalue
 
     sys.path[0:0] = prepend_path_entries
+
+    if is_used_as_sitecustomize():
+        os.environ.pop("RULES_PYTHON_USE_STAGE2_AS_SITECUSTOMIZE")
+        return
 
     main_filename = os.path.join(module_space, main_rel_path)
     main_filename = get_windows_path_with_unc_prefix(main_filename)
